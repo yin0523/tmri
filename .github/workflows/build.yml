@@ -18,22 +18,31 @@ jobs:
 
       - name: Install Gradle
         run: |
-          curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
+          curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.2-bin.zip
           unzip -q /tmp/gradle.zip -d "$HOME"
-          echo "$HOME/gradle-8.5/bin" >> "$GITHUB_PATH"
-
-      - name: Environment
-        run: |
-          gradle --version
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          ls "$ANDROID_HOME" 2>/dev/null | head -20 || echo "no android sdk"
+          echo "$HOME/gradle-8.2/bin" >> "$GITHUB_PATH"
 
       - name: Build debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+
+      - name: Show errors
+        if: failure()
+        run: |
+          echo "===== What went wrong ====="
+          grep -A 12 "What went wrong" build.log || tail -80 build.log
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ctstc-workbench-apk
           path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: warn
+
+      - name: Upload log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
