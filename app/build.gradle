@@ -15,7 +15,6 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.debug   // 想正式签名见 README
         }
     }
 
