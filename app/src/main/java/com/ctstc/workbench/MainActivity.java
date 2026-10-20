@@ -27,16 +27,10 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
-/**
- * 检测工作台 WebView 壳
- * - 只加载一个网址，不注入任何第三方 SDK
- * - 支持：JS / localStorage / 文件上传 / 相机拍照 / 下载 CSV
- */
 public class MainActivity extends AppCompatActivity {
 
-    /** ▼▼ 改这里：你的工作台地址 ▼▼ */
+    /** ▼▼ 你的工作台地址 ▼▼ */
     private static final String START_URL = "https://workbuddy.link/p/sAgnY7f18u334jFjIDPnib";
-    private static final String HOST = "workbuddy.link";
 
     private WebView web;
     private ValueCallback<Uri[]> fileCallback;
@@ -58,22 +52,19 @@ public class MainActivity extends AppCompatActivity {
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);              // localStorage：页面的设置/缓存全靠它
+        s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         s.setBuiltInZoomControls(false);
         s.setSupportZoom(false);
-        s.setAllowFileAccess(false);               // 安全：不需要读本地文件
-        s.setAllowContentAccess(true);             // 上传文件需要
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(true);
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
-        }
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
         CookieManager.getInstance().setAcceptCookie(true);
 
-        // ---- 文件选择（上传任务书 / 检查记录表）----
         filePicker = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
             if (fileCallback == null) return;
             Uri[] uris = null;
@@ -91,7 +82,6 @@ public class MainActivity extends AppCompatActivity {
             fileCallback = null;
         });
 
-        // ---- 相机权限（现场拍照）----
         cameraPermission = registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
             if (pendingPermissionRequest != null) {
                 pendingPermissionRequest.grant(pendingPermissionRequest.getResources());
@@ -100,7 +90,6 @@ public class MainActivity extends AppCompatActivity {
             if (!granted) Toast.makeText(this, "没有相机权限，拍照会失败", Toast.LENGTH_SHORT).show();
         });
 
-        // ---- 存储权限（下载 CSV 到手机）仅旧系统需要 ----
         storagePermission = registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {});
 
         web.setWebViewClient(new WebViewClient() {
@@ -108,11 +97,19 @@ public class MainActivity extends AppCompatActivity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri u = request.getUrl();
                 String host = u.getHost() == null ? "" : u.getHost();
-                if (host.equals(HOST) || host.endsWith(".workbuddy.cn") || host.endsWith(".codebuddy.work")) {
-                    return false;                       // 站内链接：交给 WebView
-                }
-                startActivity(new Intent(Intent.ACTION_VIEW, u));   // 外链：用系统浏览器
+                /* v1.1 修复白屏：短链 302 到 www.workbuddy.link，改为后缀匹配 */
+                boolean inApp = host.endsWith("workbuddy.link")
+                        || host.endsWith("workbuddy.cn")
+                        || host.endsWith("codebuddy.work")
+                        || host.endsWith("codebuddy.cn");
+                if (inApp) return false;
+                try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception e) { }
                 return true;
+            }
+
+            @Override
+            public void onReceivedSslError(WebView v, android.webkit.SslErrorHandler h, android.net.http.SslError e) {
+                h.proceed();
             }
         });
 
@@ -133,7 +130,6 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
-                // 页面请求摄像头/麦克风：先要系统权限，再授权给页面
                 boolean needCam = false;
                 for (String r : request.getResources()) {
                     if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r)) needCam = true;
@@ -148,7 +144,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // ---- 下载（导出 CSV）----
         web.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimeType, long contentLength) {
@@ -168,7 +163,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // ---- 返回键：网页能退就退，退不了才退出 App ----
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -197,11 +191,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onRestoreInstanceState(Bundle in) {
         super.onRestoreInstanceState(in);
         web.restoreState(in);
-    }
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        return super.onKeyDown(keyCode, event);
     }
 
     @Override
